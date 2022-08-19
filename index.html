@@ -1,118 +1,47 @@
-<html>
-    <head>
-        <meta charset="UTF-8" />
-        <script src="js/main.js"></script>
-        <script src="js/GPXParser.min.js"></script>
-        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
-            integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
-            crossorigin=""/>
-        <!-- Make sure you put this AFTER Leaflet's CSS -->
-        <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
-            integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
-            crossorigin=""></script>
-        <script type="text/javascript">
-            function load_gpx(filename) {
-                const xhttp = new XMLHttpRequest();
-                xhttp.open("GET", filename, false);
-                xhttp.send();
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="app"></div>
 
-                var gpx = new gpxParser(); //Create gpxParser Object
-                gpx.parse(xhttp.responseText);
-                return gpx;
-            }
+    <!-- To share on a "protectedtext" pad, also need CORS proxy -->
+    <script src="https://www.protectedtext.com/js/sha512.js"></script>
+    <script src="https://www.protectedtext.com/js/aes.js"></script>
 
-            function draw_map($_GET, gpx_track) {
-                let mymap = L.map('map');
+    <script src="js/GPXParser.min.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+      integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
+      crossorigin=""
+    />
+    <!-- Make sure you put this AFTER Leaflet's CSS -->
+    <script
+      src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
+      integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
+      crossorigin=""
+    ></script>
 
-                L.tileLayer(
-                    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', 
-                    {
-                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-                        maxZoom: 50
-                    }
-                ).addTo(mymap);
-
-                let coordinates = gpx_track.points.map(p => [p.lat.toFixed(5), p.lon.toFixed(5)]);
-                var polyline = L.polyline(coordinates, { weight: 6, color: 'darkred' }).addTo(mymap);
-                // zoom the map to the polyline
-                mymap.fitBounds(polyline.getBounds());
-
-                L.marker([$_GET["lat"], $_GET["lon"]]).addTo(mymap)
-            }
-
-            function fill_elements() {
-                // get query arguments            
-                var $_GET = parse_args();
-
-                if (!valid_get_args($_GET)) {
-                    document.getElementById("title").innerHTML = "Suivi de coureur sur une trace GPX (HTML/JS only)";
-                    document.getElementById("warning").innerHTML = "Vous devez passer les arguments <code>lat</code>, <code>lon</code> et <code>track</code>.<br />" +
-                        "Exemple d'URL valide : <code>https://rtavenar.github.io/cap_nn/index.html?track=migoual-concept-race&lat=44.10433&lon=3.53856&start_timestamp=1641306320507&amp;current_timestamp=1641336134388</code>";
-                    return;
-                }
-                var url = "gpx/" + $_GET["track"] + ".gpx";
-                var track_id = 0;   // TODO: could be passed as arg maybe?
-                
-                document.getElementById("title").innerHTML = "Suivi de coureur sur la trace <code>" + url + "</code>";
-
-                var gpx_o = load_gpx(url);
-                
-                const track = gpx_o.tracks[0];
-
-                document.getElementById("track_name").innerHTML = track.name;
-                document.getElementById("track_length").innerHTML = "(" + Math.round(track.distance.total / 1000) + "km)";
-                
-                d_opt = distance_covered_second_half($_GET["lat"], $_GET["lon"], track);
-                d_pess = distance_covered_first_half($_GET["lat"], $_GET["lon"], track);
-                document.getElementById("opt_dist_parcourue").innerHTML = Math.round(d_opt / 1000) + "km";
-                document.getElementById("pess_dist_parcourue").innerHTML = Math.round(d_pess / 1000) + "km";
-
-                if (!Object.keys($_GET).includes("start_timestamp")) {
-                    for (span_id of Array("temps_ecoule", "opt_temps_restant", "pess_temps_restant")) {
-                        document.getElementById(span_id).innerHTML = "NaN (heure de début <code>start_timestamp</code> non fournie)";
-                    }
-                } else {
-                    var cur_date = Object.keys($_GET).includes("current_timestamp") ? $_GET["current_timestamp"] : Date.now();
-                    var elapsed = (cur_date - $_GET["start_timestamp"]) / 1000;
-                    document.getElementById("temps_ecoule").innerHTML = time_to_string(elapsed);
-
-                    var expected_remaining_time_opt = elapsed * (track.distance.total - d_opt) / d_opt;
-                    document.getElementById("opt_temps_restant").innerHTML = time_to_string(expected_remaining_time_opt);
-
-                    var expected_remaining_time_pess = elapsed * (track.distance.total - d_pess) / d_pess;
-                    document.getElementById("pess_temps_restant").innerHTML = time_to_string(expected_remaining_time_pess);
-                }
-
-                draw_map($_GET, track);
-            }
-        </script>
-    </head>
-    <body onload="fill_elements()">
-        <h1 id="title"></h1>
-
-        <p id="warning"></p>
-
-        <div id="found_tracks">
-            <h2><span id="track_name"></span> <span id="track_length"></span></h2>
-
-            <p>Temps écoulé: <span id="temps_ecoule"></span></p>
-
-            <h3>Version optimiste (les coureurs ont dépassé la mi-course)</h3>
-
-            <ul>
-                <li>Distance parcourue: <span id="opt_dist_parcourue"></span></li>
-                <li>Temps restant (estimé): <span id="opt_temps_restant"></span></li>
-            </ul>
-
-            <h3>Version pessimiste (les coureurs sont encore dans la première moitié de course)</h3>
-
-            <ul>
-                <li>Distance parcourue: <span id="pess_dist_parcourue"></span></li>
-                <li>Temps restant (estimé): <span id="pess_temps_restant"></span></li>
-            </ul>
-        </div>
-
-        <div id="map" style="height:180px;"></div>
-
-    </body>
+    <script src="https://unpkg.com/vue@next"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue3-sfc-loader/dist/vue3-sfc-loader.js"></script>
+    <script src="js/main.js"></script>
+    <script src="utils.js"></script>
+    <script>
+      const app = Vue.createApp({
+        template: "<App></App>",
+      });
+      for (let camel of "App PageTitle".split(" ")) {
+        let dash = camel
+          .replace(/[A-Z]/g, (m) => "-" + m.toLowerCase())
+          .replace(/^-/, "");
+        console.log("... registering", dash, "and", camel);
+        app.component(dash, asyncComponent(camel + ".vue"));
+        app.component(camel, asyncComponent(camel + ".vue"));
+      }
+      app.mount("#app");
+    </script>
+  </body>
 </html>
